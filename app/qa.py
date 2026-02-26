@@ -2,14 +2,12 @@ import asyncio
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.chains import GraphCypherQAChain
-from langchain.prompts import PromptTemplate
 
 def build_hybrid_qa_chain(graph):
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     embeddings = OpenAIEmbeddings()
     vector_db = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
     
-    # Standard Cypher Chain - we will use .ainvoke() for this
     cypher_chain = GraphCypherQAChain.from_llm(
         llm=llm, 
         graph=graph, 
@@ -18,26 +16,39 @@ def build_hybrid_qa_chain(graph):
     )
 
     async def hybrid_retriever(query):
-        # Triggering Graph and Vector searches in PARALLEL
-        # asyncio.gather schedules both tasks and waits for them to finish concurrently
+        # 1. Parallel Retrieval (Graph and Vector)
         graph_task = cypher_chain.ainvoke({"query": query})
         vector_task = vector_db.asimilarity_search(query, k=3)
 
         graph_result, vector_data = await asyncio.gather(graph_task, vector_task)
         
-        # A. Extract Graph context
-        graph_context = graph_result.get("result", "No relevant graph data found.")
-        
-        # B. Extract Vector context
+        raw_graph_context = graph_result.get("result", "No relevant graph data found.")
         vector_context = "\n".join([d.page_content for d in vector_data])
+
+        # 2. Semantic Pruning (Graph Only)
+        # This pass filters out irrelevant nodes/triplets from the graph search result.
+        pruning_prompt = f"""
+        You are a medical data filterer. Review the raw facts retrieved from a knowledge graph below.
+        Discard any facts that are NOT directly useful for answering the question: "{query}"
         
-        # C. Fuse and Generate asynchronously
+        RAW GRAPH DATA:
+        {raw_graph_context}
+        
+        Return a concise list of only the relevant facts. If none are relevant, return "No relevant facts found. """
+        pruned_graph_result = await llm.ainvoke(pruning_prompt)
+        pruned_graph_context = pruned_graph_result.content
+
+        # 3. Final Hybrid Synthesis
+        # We fuse the UNPRUNED Vector context with the PRUNED Graph facts.
         fusion_prompt = f"""
-        Answer the question using BOTH the structured graph facts and the document text provided.
+        Answer the question using the following verified facts and context.
         If the information conflicts, prioritize the GRAPH FACTS.
         
-        GRAPH FACTS: {graph_context}
-        DOCUMENT TEXT: {vector_context}
+        PRUNED GRAPH FACTS: 
+        {pruned_graph_context}
+        
+        DOCUMENT TEXT (VECTOR): 
+        {vector_context}
         
         QUESTION: {query}
         ANSWER:"""
