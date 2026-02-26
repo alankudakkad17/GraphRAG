@@ -1,49 +1,33 @@
-import tempfile
-from langchain.document_loaders import pyPDFLoader
-from langchain.text_spilitters import RecursiveCharacterTextSplitter
-from langchain.schema import Document
-from langchain_community.graph_transformers import LLLMGraphTransformer
-from langchain_openai import chatopenai
+import os
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.graph_transformers import LLMGraphTransformer
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.vectorstores import Chroma
 
 def ingest_pdf(file_path, graph):
     loader = PyPDFLoader(file_path)
     pages = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150
-    )
-
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
     docs = splitter.split_documents(pages)
 
-    documents = [
-        Document(
-            page_content=d.page_content.replace("\n", " "),
-            metadata={"source": file_path}
-        )
-        for d in docs
-    ]
+    # 1. Vector Ingestion (Similarity Search)
+    vector_db = Chroma.from_documents(
+        docs, 
+        OpenAIEmbeddings(), 
+        persist_directory="./chroma_db"
+    )
 
+    # 2. Graph Ingestion (Relationship Extraction)
+    llm = ChatOpenAI(model="gpt-4o-mini")
     transformer = LLMGraphTransformer(
-        llm=ChatOpenAI(model="gpt-4o-mini"),
-        allowed_nodes=[
-            "Patient", "Disease", "Medication",
-            "Test", "Symptom", "Doctor"
-        ],
-        allowed_relationships=[
-            "HAS_DISEASE",
-            "TAKES_MEDICATION",
-            "UNDERWENT_TEST",
-            "HAS_SYMPTOM",
-            "TREATED_BY"
-        ],
-        node_properties=False,
-        relationship_properties=False
+        llm=llm,
+        allowed_nodes=["Patient", "Disease", "Medication", "Test", "Symptom", "Doctor"],
+        allowed_relationships=["HAS_DISEASE", "TAKES_MEDICATION", "UNDERWENT_TEST", "HAS_SYMPTOM", "TREATED_BY"]
     )
-
-    graph_docs = transformer.convert_to_graph_documents(documents)
-
-    graph.add_graph_documents(
-        graph_docs,
-        include_source=True
-    )
+    
+    graph_docs = transformer.convert_to_graph_documents(docs)
+    graph.add_graph_documents(graph_docs, include_source=True)
+    
+    return vector_db
