@@ -1,10 +1,20 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware # Add this import
 from app.graph import get_graph
 from app.ingestion import ingest_pdf
 from app.qa import build_hybrid_qa_chain
 from app.schemas import QuestionRequest, AnswerResponse
 
 app = FastAPI(title="Hybrid GraphRAG API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 graph = get_graph()
 hybrid_qa = None
 
