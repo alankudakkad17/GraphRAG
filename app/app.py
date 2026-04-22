@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://localhost:8000"
+API_URL = "http://api:8000"
 
 st.title("GraphRAG Medical Assistant 🧬")
 
