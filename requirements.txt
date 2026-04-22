@@ -1,13 +1,28 @@
+# --- API & Backend Framework ---
 fastapi
 uvicorn
-python-dotenv
 python-multipart
+python-dotenv
+pydantic
 
+# --- AI, LLMs & LangChain ---
 langchain
-langchain-openai
 langchain-community
+langchain-openai
 langchain-experimental
 
+# --- Databases & Graph Processing ---
 neo4j
-tiktoken
+chromadb
+
+# --- Document Processing ---
 pypdf
+
+# --- Evaluation Suite ---
+ragas
+datasets
+pandas
+
+# --- Frontend ---
+streamlit
+requests
