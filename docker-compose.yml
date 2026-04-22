@@ -23,7 +23,9 @@ services:
       retries: 10
 
   api:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: graphrag-api
     depends_on:
       neo4j:
@@ -34,6 +36,17 @@ services:
       - .env
     environment:
       - NEO4J_URL=bolt://neo4j:7687
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: graphrag-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:
