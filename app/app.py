@@ -3,7 +3,7 @@ import requests
 
 API_URL = "http://api:8000"
 
-st.title("GraphRAG Medical Assistant 🧬")
+st.title("GraphRAG Assistant 🧬")
 
 # Sidebar for PDF Upload
 with st.sidebar:
